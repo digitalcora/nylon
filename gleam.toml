@@ -3,7 +3,8 @@ version = "0.0.1"
 description = "Sockets and networking for Gleam."
 licences = ["Apache-2.0"]
 repository = { type = "github", user = "digitalcora", repo = "nylon" }
-links = [{ title = "Website", href = "https://github.com/digitalcora/nylon" }]
+
+internal_modules = ["nylon/lib/*"]
 
 [dependencies]
 gleam_erlang = "~> 0.18.0"

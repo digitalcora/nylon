@@ -5,7 +5,7 @@ import gleam/list
 import gleam/map
 import gleam/result
 import gleam/string
-import nylon/erl
+import nylon/lib/erl
 
 /// `socket:sockaddr`
 pub type Address {

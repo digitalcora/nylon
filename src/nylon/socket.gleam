@@ -2,37 +2,37 @@ import gleam/dynamic.{Dynamic}
 import gleam/erlang/process.{Pid}
 import gleam/option.{Option}
 import nylon/address.{Address}
-import nylon/error/connect_normal
-import nylon/error/connect_timeout
-import nylon/error/normal
-import nylon/error/timeout
 import nylon/posix
 import nylon/socket/async
 import nylon/socket/cancel
+import nylon/socket/connect
+import nylon/socket/connect_until
+import nylon/socket/error
 import nylon/socket/open
 import nylon/socket/recv
 import nylon/socket/send
 import nylon/socket/shutdown
+import nylon/socket/timeout
 import nylon/socket/transfer
 
 pub external type Socket
 
 pub type AcceptResult =
-  Result(Socket, normal.Error)
+  Result(Socket, error.Error)
 
 pub type ConnectResult =
-  Result(Nil, connect_normal.Error)
+  Result(Nil, connect.Error)
 
 pub type RecvResult =
-  Result(BitString, #(normal.Error, Option(BitString)))
+  Result(BitString, #(error.Error, Option(BitString)))
 
 pub type SendResult =
-  Result(Option(BitString), #(normal.Error, Option(BitString)))
+  Result(Option(BitString), #(error.Error, Option(BitString)))
 
 pub type Message {
   Select(Socket, async.SelectHandle)
   Completion(Socket, async.CompletionHandle, CompletionStatus)
-  Abort(Socket, async.SelectHandle, normal.Error)
+  Abort(Socket, async.SelectHandle, error.Error)
 }
 
 pub type CompletionStatus {
@@ -45,7 +45,7 @@ pub type CompletionStatus {
 pub external fn accept(Socket) -> AcceptResult =
   "nylon_ffi" "accept_forever"
 
-pub external fn accept_async(Socket) -> async.Result(Socket, Nil, normal.Error) =
+pub external fn accept_async(Socket) -> async.Result(Socket, Nil, error.Error) =
   "nylon_ffi" "accept_nowait"
 
 pub external fn accept_until(
@@ -54,7 +54,7 @@ pub external fn accept_until(
 ) -> Result(Socket, timeout.Error) =
   "nylon_ffi" "accept"
 
-pub fn bind(socket: Socket, address: Address) -> Result(Nil, normal.Error) {
+pub fn bind(socket: Socket, address: Address) -> Result(Nil, error.Error) {
   do_bind(socket, address.to_sockaddr(address))
 }
 
@@ -77,7 +77,7 @@ pub fn connect(socket: Socket, addr: Address) -> ConnectResult {
 pub fn connect_async(
   socket: Socket,
   addr: Address,
-) -> async.Result(Socket, Nil, connect_normal.Error) {
+) -> async.Result(Socket, Nil, connect.Error) {
   do_connect_async(socket, address.to_sockaddr(addr))
 }
 
@@ -85,7 +85,7 @@ pub fn connect_until(
   socket: Socket,
   addr: Address,
   timeout timeout: Int,
-) -> Result(Nil, connect_timeout.Error) {
+) -> Result(Nil, connect_until.Error) {
   do_connect_until(socket, address.to_sockaddr(addr), timeout)
 }
 
@@ -93,10 +93,10 @@ pub fn connect_until(
 pub external fn close(Socket) -> Result(Nil, timeout.Error) =
   "nylon_ffi" "close"
 
-pub external fn listen(Socket) -> Result(Nil, normal.Error) =
+pub external fn listen(Socket) -> Result(Nil, error.Error) =
   "nylon_ffi" "listen"
 
-pub external fn listen_with(Socket, backlog: Int) -> Result(Nil, normal.Error) =
+pub external fn listen_with(Socket, backlog: Int) -> Result(Nil, error.Error) =
   "nylon_ffi" "listen"
 
 pub external fn open(
@@ -117,7 +117,7 @@ pub external fn recv_async(
 ) -> async.Result(
   BitString,
   Option(BitString),
-  #(normal.Error, Option(BitString)),
+  #(error.Error, Option(BitString)),
 ) =
   "nylon_ffi" "recv_nowait"
 
@@ -136,7 +136,7 @@ pub external fn send_async(
   Socket,
   BitString,
   send.Disposition,
-) -> async.Result(Option(BitString), Option(BitString), normal.Error) =
+) -> async.Result(Option(BitString), Option(BitString), error.Error) =
   "nylon_ffi" "send_nowait"
 
 pub external fn send_until(
@@ -147,7 +147,7 @@ pub external fn send_until(
 ) -> Result(Option(BitString), #(timeout.Error, Option(BitString))) =
   "nylon_ffi" "send"
 
-pub external fn shutdown(Socket, shutdown.Which) -> Result(Nil, normal.Error) =
+pub external fn shutdown(Socket, shutdown.Which) -> Result(Nil, error.Error) =
   "nylon_ffi" "shutdown"
 
 /// Transfer ownership of a socket to the specified process.
@@ -160,7 +160,7 @@ pub external fn shutdown(Socket, shutdown.Which) -> Result(Nil, normal.Error) =
 pub external fn transfer(Socket, Pid) -> Result(Nil, transfer.Error) =
   "nylon_ffi" "transfer"
 
-external fn do_bind(Socket, Dynamic) -> Result(Nil, normal.Error) =
+external fn do_bind(Socket, Dynamic) -> Result(Nil, error.Error) =
   "nylon_ffi" "bind"
 
 external fn do_connect(Socket, Dynamic) -> ConnectResult =
@@ -169,12 +169,12 @@ external fn do_connect(Socket, Dynamic) -> ConnectResult =
 external fn do_connect_async(
   Socket,
   Dynamic,
-) -> async.Result(Socket, Nil, connect_normal.Error) =
+) -> async.Result(Socket, Nil, connect.Error) =
   "nylon_ffi" "connect_nowait"
 
 external fn do_connect_until(
   Socket,
   Dynamic,
   Int,
-) -> Result(Nil, connect_timeout.Error) =
+) -> Result(Nil, connect_until.Error) =
   "nylon_ffi" "connect"

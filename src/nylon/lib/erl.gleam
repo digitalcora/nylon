@@ -1,3 +1,5 @@
+//// Utility functions for Erlang interop.
+
 import gleam/dynamic.{Dynamic}
 import gleam/erlang/atom.{Atom}
 
