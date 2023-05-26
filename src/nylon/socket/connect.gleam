@@ -12,7 +12,6 @@ pub type Error {
   Closed
 
   /// **Windows:** The socket is not bound to an address (see `socket.bind`).
-  /// This error is never returned on Unix platforms.
   NotBound
 
   /// See `nylon/posix`.

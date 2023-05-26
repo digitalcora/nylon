@@ -1,8 +1,9 @@
--module(nylon_ffi).
+-module(socket_ffi).
 -export([
     accept/2,
     accept_forever/1,
     accept_nowait/1,
+    address/1,
     bind/2,
     cancel/2,
     close/1,
@@ -18,86 +19,12 @@
     send_forever/3,
     send_nowait/3,
     shutdown/2,
+    sockaddr_in/2,
+    sockaddr_un/1,
     transfer/2
 ]).
 
--define(is_posix_error(Error),
-    Error =:= eaddrinuse orelse
-        Error =:= eaddrnotavail orelse
-        Error =:= eafnosupport orelse
-        Error =:= ealready orelse
-        Error =:= econnaborted orelse
-        Error =:= econnrefused orelse
-        Error =:= econnreset orelse
-        Error =:= edestaddrreq orelse
-        Error =:= ehostdown orelse
-        Error =:= ehostunreach orelse
-        Error =:= einprogress orelse
-        Error =:= eisconn orelse
-        Error =:= emsgsize orelse
-        Error =:= enetdown orelse
-        Error =:= enetunreach orelse
-        Error =:= enopkg orelse
-        Error =:= enoprotoopt orelse
-        Error =:= enotconn orelse
-        Error =:= enotsock orelse
-        Error =:= enotty orelse
-        Error =:= eproto orelse
-        Error =:= eprotonosupport orelse
-        Error =:= eprototype orelse
-        Error =:= esocktnosupport orelse
-        Error =:= etimedout orelse
-        Error =:= ewouldblock orelse
-        Error =:= exbadport orelse
-        Error =:= exbadseq orelse
-        Error =:= eacces orelse
-        Error =:= eagain orelse
-        Error =:= ebadf orelse
-        Error =:= ebadmsg orelse
-        Error =:= ebusy orelse
-        Error =:= edeadlk orelse
-        Error =:= edeadlock orelse
-        Error =:= edquot orelse
-        Error =:= eexist orelse
-        Error =:= efault orelse
-        Error =:= efbig orelse
-        Error =:= eftype orelse
-        Error =:= eintr orelse
-        Error =:= einval orelse
-        Error =:= eio orelse
-        Error =:= eisdir orelse
-        Error =:= eloop orelse
-        Error =:= emfile orelse
-        Error =:= emlink orelse
-        Error =:= emultihop orelse
-        Error =:= enametoolong orelse
-        Error =:= enfile orelse
-        Error =:= enobufs orelse
-        Error =:= enodev orelse
-        Error =:= enolck orelse
-        Error =:= enolink orelse
-        Error =:= enoent orelse
-        Error =:= enomem orelse
-        Error =:= enospc orelse
-        Error =:= enosr orelse
-        Error =:= enostr orelse
-        Error =:= enosys orelse
-        Error =:= enotblk orelse
-        Error =:= enotdir orelse
-        Error =:= enotsup orelse
-        Error =:= enxio orelse
-        Error =:= eopnotsupp orelse
-        Error =:= eoverflow orelse
-        Error =:= eperm orelse
-        Error =:= epipe orelse
-        Error =:= erange orelse
-        Error =:= erofs orelse
-        Error =:= espipe orelse
-        Error =:= esrch orelse
-        Error =:= estale orelse
-        Error =:= etxtbsy orelse
-        Error =:= exdev
-).
+-include("posix_ffi.hrl").
 
 accept(ListenSocket, Timeout) ->
     case socket:accept(ListenSocket, Timeout) of
@@ -112,6 +39,12 @@ accept_forever(ListenSocket) ->
 
 accept_nowait(ListenSocket) ->
     accept(ListenSocket, nowait).
+
+address(Socket) ->
+    case socket:sockname(Socket) of
+        {ok, Address} -> {ok, Address};
+        {error, Error} -> {error, posix_or_closed(Error)}
+    end.
 
 bind(Socket, Addr) ->
     case socket:bind(Socket, Addr) of
@@ -149,13 +82,13 @@ connect_nowait(Socket, Address) ->
 listen(Socket) ->
     case socket:listen(Socket) of
         ok -> {ok, nil};
-        {error, Error} -> {error, posix_or_closed(Error)}
+        {error, Error} -> {error, posix_or_listen_error(Error)}
     end.
 
 listen(Socket, Backlog) ->
     case socket:listen(Socket, Backlog) of
         ok -> {ok, nil};
-        {error, Error} -> {error, posix_or_closed(Error)}
+        {error, Error} -> {error, posix_or_listen_error(Error)}
     end.
 
 open(Domain, Type, Protocol, Opts) ->
@@ -202,6 +135,12 @@ shutdown(Socket, How) ->
         {error, Error} -> {error, posix_or_closed(Error)}
     end.
 
+sockaddr_in({Family, Address}, {port, Port}) when Family =:= inet orelse Family =:= inet6 ->
+    #{family => Family, addr => Address, port => Port}.
+
+sockaddr_un(Path) ->
+    #{family => local, path => Path}.
+
 transfer(Socket, Pid) ->
     case socket:setopt(Socket, {otp, controlling_process}, Pid) of
         ok -> {ok, nil};
@@ -228,5 +167,12 @@ posix_or_connect_error(Error) ->
         closed -> closed;
         not_bound -> not_bound;
         timeout -> timeout;
+        E when ?is_posix_error(E) -> {posix, E}
+    end.
+
+posix_or_listen_error(Error) ->
+    case Error of
+        closed -> closed;
+        not_bound -> not_bound;
         E when ?is_posix_error(E) -> {posix, E}
     end.

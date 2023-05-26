@@ -1,13 +1,13 @@
-import gleam/dynamic.{Dynamic}
 import gleam/erlang/process.{Pid}
 import gleam/option.{Option}
-import nylon/address.{Address}
 import nylon/posix
+import nylon/socket/address.{Address}
 import nylon/socket/async
 import nylon/socket/cancel
 import nylon/socket/connect
 import nylon/socket/connect_until
 import nylon/socket/error
+import nylon/socket/listen
 import nylon/socket/open
 import nylon/socket/recv
 import nylon/socket/send
@@ -43,61 +43,96 @@ pub type CompletionStatus {
 }
 
 pub external fn accept(Socket) -> AcceptResult =
-  "nylon_ffi" "accept_forever"
+  "socket_ffi" "accept_forever"
 
 pub external fn accept_async(Socket) -> async.Result(Socket, Nil, error.Error) =
-  "nylon_ffi" "accept_nowait"
+  "socket_ffi" "accept_nowait"
 
 pub external fn accept_until(
   Socket,
   timeout: Int,
 ) -> Result(Socket, timeout.Error) =
-  "nylon_ffi" "accept"
+  "socket_ffi" "accept"
 
-pub fn bind(socket: Socket, address: Address) -> Result(Nil, error.Error) {
-  do_bind(socket, address.to_sockaddr(address))
-}
+/// Return the address the socket is bound to (see `bind`).
+///
+/// **Windows:** Returns `Error(Posix(Einval))` if the socket is unbound.
+pub external fn address(Socket) -> Result(Address, error.Error) =
+  "socket_ffi" "address"
+
+/// Binds a socket to an address. This determines the address to `connect` from
+/// or `listen` on. `address` retrieves the currently bound address.
+///
+/// On Unix, unbound sockets behave as though they are bound to some default
+/// address, usually an "any" IP address. On Windows, `address`, `connect`, and
+/// `listen` return an error when used with an unbound socket.
+///
+/// Note that binding to a local path creates the specified file (or "socket
+/// object"), but does _not_ automatically delete it when the socket is closed.
+/// Use `file.delete` from `gleam_erlang` to remove it if desired.
+///
+/// Common POSIX errors:
+///
+/// * `Einval`: The socket is already bound. Binding is "permanent"; to free up
+///   the bound address or use a different one, the socket must be closed and a
+///   new one opened.
+///
+/// * `Eaddrinuse`: For IP sockets, another program is already bound to the
+///   given address, or `address.assign_port` was used and there are no free
+///   ports in the ephemeral range. For local sockets, the path already exists.
+///
+/// * `Eaddrnotavail`: The address cannot be bound. For IP sockets, indicates
+///   the address does not match any of the machine's network interfaces.
+///
+/// * `Eacces`: The current user does not have permission to bind the address.
+///   For IP sockets, binding to a port number less than 1024 is typically not
+///   allowed unless running as `root`. For local sockets, the user may not have
+///   search permission on one of the directories in the path.
+///
+/// * `Enoent`/`Enotdir`: For local sockets, one of the directories in the path
+///   does not exist or is not a directory, respectively.
+///
+/// * `Enotsup`: For local sockets, the path is not an absolute path.
+pub external fn bind(Socket, Address) -> Result(Nil, error.Error) =
+  "socket_ffi" "bind"
 
 pub external fn cancel_completion(
   Socket,
   async.CompletionInfo,
 ) -> Result(Nil, cancel.Error) =
-  "nylon_ffi" "cancel"
+  "socket_ffi" "cancel"
 
 pub external fn cancel_select(
   Socket,
   async.SelectInfo,
 ) -> Result(Nil, cancel.Error) =
-  "nylon_ffi" "cancel"
+  "socket_ffi" "cancel"
 
-pub fn connect(socket: Socket, addr: Address) -> ConnectResult {
-  do_connect(socket, address.to_sockaddr(addr))
-}
+pub external fn connect(Socket, Address) -> ConnectResult =
+  "socket_ffi" "connect_forever"
 
-pub fn connect_async(
-  socket: Socket,
-  addr: Address,
-) -> async.Result(Socket, Nil, connect.Error) {
-  do_connect_async(socket, address.to_sockaddr(addr))
-}
+pub external fn connect_async(
+  Socket,
+  Address,
+) -> async.Result(Socket, Nil, connect.Error) =
+  "socket_ffi" "connect_nowait"
 
-pub fn connect_until(
-  socket: Socket,
-  addr: Address,
-  timeout timeout: Int,
-) -> Result(Nil, connect_until.Error) {
-  do_connect_until(socket, address.to_sockaddr(addr), timeout)
-}
+pub external fn connect_until(
+  Socket,
+  Address,
+  Int,
+) -> Result(Nil, connect_until.Error) =
+  "socket_ffi" "connect"
 
 // `Timeout` = linger timeout expired without all buffered data being sent
 pub external fn close(Socket) -> Result(Nil, timeout.Error) =
-  "nylon_ffi" "close"
+  "socket_ffi" "close"
 
-pub external fn listen(Socket) -> Result(Nil, error.Error) =
-  "nylon_ffi" "listen"
+pub external fn listen(Socket) -> Result(Nil, listen.Error) =
+  "socket_ffi" "listen"
 
-pub external fn listen_with(Socket, backlog: Int) -> Result(Nil, error.Error) =
-  "nylon_ffi" "listen"
+pub external fn listen_with(Socket, backlog: Int) -> Result(Nil, listen.Error) =
+  "socket_ffi" "listen"
 
 pub external fn open(
   open.Domain,
@@ -105,10 +140,10 @@ pub external fn open(
   open.Protocol,
   List(open.Option),
 ) -> Result(Socket, posix.Error) =
-  "nylon_ffi" "open"
+  "socket_ffi" "open"
 
 pub external fn recv(Socket, length: Int, flags: List(recv.Flag)) -> RecvResult =
-  "nylon_ffi" "recv_forever"
+  "socket_ffi" "recv_forever"
 
 pub external fn recv_async(
   Socket,
@@ -119,7 +154,7 @@ pub external fn recv_async(
   Option(BitString),
   #(error.Error, Option(BitString)),
 ) =
-  "nylon_ffi" "recv_nowait"
+  "socket_ffi" "recv_nowait"
 
 pub external fn recv_until(
   Socket,
@@ -127,17 +162,17 @@ pub external fn recv_until(
   flags: List(recv.Flag),
   timeout: Int,
 ) -> Result(BitString, #(timeout.Error, Option(BitString))) =
-  "nylon_ffi" "recv"
+  "socket_ffi" "recv"
 
 pub external fn send(Socket, BitString, send.Disposition) -> SendResult =
-  "nylon_ffi" "send_forever"
+  "socket_ffi" "send_forever"
 
 pub external fn send_async(
   Socket,
   BitString,
   send.Disposition,
 ) -> async.Result(Option(BitString), Option(BitString), error.Error) =
-  "nylon_ffi" "send_nowait"
+  "socket_ffi" "send_nowait"
 
 pub external fn send_until(
   Socket,
@@ -145,10 +180,10 @@ pub external fn send_until(
   send.Disposition,
   timeout: Int,
 ) -> Result(Option(BitString), #(timeout.Error, Option(BitString))) =
-  "nylon_ffi" "send"
+  "socket_ffi" "send"
 
 pub external fn shutdown(Socket, shutdown.Which) -> Result(Nil, error.Error) =
-  "nylon_ffi" "shutdown"
+  "socket_ffi" "shutdown"
 
 /// Transfer ownership of a socket to the specified process.
 ///
@@ -158,23 +193,4 @@ pub external fn shutdown(Socket, shutdown.Which) -> Result(Nil, error.Error) =
 ///
 /// Only the existing owner can transfer a socket.
 pub external fn transfer(Socket, Pid) -> Result(Nil, transfer.Error) =
-  "nylon_ffi" "transfer"
-
-external fn do_bind(Socket, Dynamic) -> Result(Nil, error.Error) =
-  "nylon_ffi" "bind"
-
-external fn do_connect(Socket, Dynamic) -> ConnectResult =
-  "nylon_ffi" "connect_forever"
-
-external fn do_connect_async(
-  Socket,
-  Dynamic,
-) -> async.Result(Socket, Nil, connect.Error) =
-  "nylon_ffi" "connect_nowait"
-
-external fn do_connect_until(
-  Socket,
-  Dynamic,
-  Int,
-) -> Result(Nil, connect_until.Error) =
-  "nylon_ffi" "connect"
+  "socket_ffi" "transfer"

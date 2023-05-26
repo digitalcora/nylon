@@ -1,6 +1,6 @@
 /// Represents an error code returned from the operating system's socket API.
 ///
-/// Since the platform can technically return any error code from any socket
+/// Because the system can technically return any error code from any socket
 /// operation, every operation must include all of these errors in its error
 /// type. Exhaustively matching on these is _not_ recommended; instead, start
 /// with a fallback match that assumes the error is unrecoverable (e.g. log it
