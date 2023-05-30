@@ -1,3 +1,5 @@
+import gleam/dynamic.{Dynamic}
+
 pub external type SelectTag
 
 pub external type SelectHandle
@@ -19,4 +21,9 @@ pub type Result(a, b, c) {
   Select(SelectInfo, b)
   Completion(CompletionInfo)
   Error(c)
+}
+
+pub type AbortReason {
+  Closed
+  Unknown(Dynamic)
 }

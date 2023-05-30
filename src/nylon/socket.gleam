@@ -1,4 +1,6 @@
-import gleam/erlang/process.{Pid}
+import gleam/dynamic.{Dynamic}
+import gleam/erlang/atom
+import gleam/erlang/process
 import gleam/option.{Option}
 import nylon/posix
 import nylon/socket/address.{Address}
@@ -31,15 +33,8 @@ pub type SendResult =
 
 pub type Message {
   Select(Socket, async.SelectHandle)
-  Completion(Socket, async.CompletionHandle, CompletionStatus)
-  Abort(Socket, async.SelectHandle, error.Error)
-}
-
-pub type CompletionStatus {
-  AcceptStatus(AcceptResult)
-  ConnectStatus(ConnectResult)
-  RecvStatus(RecvResult)
-  SendStatus(SendResult)
+  Abort(Socket, async.SelectHandle, async.AbortReason)
+  Completion(Socket, async.CompletionHandle, Dynamic)
 }
 
 pub external fn accept(Socket) -> AcceptResult =
@@ -47,6 +42,11 @@ pub external fn accept(Socket) -> AcceptResult =
 
 pub external fn accept_async(Socket) -> async.Result(Socket, Nil, error.Error) =
   "socket_ffi" "accept_nowait"
+
+pub external fn accept_result(
+  Dynamic,
+) -> Result(AcceptResult, List(dynamic.DecodeError)) =
+  "socket_ffi" "decode_accept_result"
 
 pub external fn accept_until(
   Socket,
@@ -117,6 +117,14 @@ pub external fn connect_async(
 ) -> async.Result(Socket, Nil, connect.Error) =
   "socket_ffi" "connect_nowait"
 
+pub external fn connect_finish(Socket) -> Result(Nil, error.Error) =
+  "socket_ffi" "connect_finish"
+
+pub external fn connect_result(
+  Dynamic,
+) -> Result(ConnectResult, List(dynamic.DecodeError)) =
+  "socket_ffi" "decode_connect_result"
+
 pub external fn connect_until(
   Socket,
   Address,
@@ -156,6 +164,11 @@ pub external fn recv_async(
 ) =
   "socket_ffi" "recv_nowait"
 
+pub external fn recv_result(
+  Dynamic,
+) -> Result(RecvResult, List(dynamic.DecodeError)) =
+  "socket_ffi" "decode_recv_result"
+
 pub external fn recv_until(
   Socket,
   length: Int,
@@ -163,6 +176,22 @@ pub external fn recv_until(
   timeout: Int,
 ) -> Result(BitString, #(timeout.Error, Option(BitString))) =
   "socket_ffi" "recv"
+
+pub fn selecting_async(
+  selector: process.Selector(a),
+  mapping transform: fn(Message) -> a,
+) -> process.Selector(a) {
+  let assert Ok(atom_socket) = atom.from_string("$socket")
+
+  process.selecting_record4(
+    selector,
+    atom_socket,
+    fn(elem2, elem3, elem4) {
+      translate_async_message(elem2, elem3, elem4)
+      |> transform()
+    },
+  )
+}
 
 pub external fn send(Socket, BitString, send.Disposition) -> SendResult =
   "socket_ffi" "send_forever"
@@ -173,6 +202,11 @@ pub external fn send_async(
   send.Disposition,
 ) -> async.Result(Option(BitString), Option(BitString), error.Error) =
   "socket_ffi" "send_nowait"
+
+pub external fn send_result(
+  Dynamic,
+) -> Result(SendResult, List(dynamic.DecodeError)) =
+  "socket_ffi" "decode_send_result"
 
 pub external fn send_until(
   Socket,
@@ -192,5 +226,8 @@ pub external fn shutdown(Socket, shutdown.Which) -> Result(Nil, error.Error) =
 /// a socket is the process that created it.
 ///
 /// Only the existing owner can transfer a socket.
-pub external fn transfer(Socket, Pid) -> Result(Nil, transfer.Error) =
+pub external fn transfer(Socket, process.Pid) -> Result(Nil, transfer.Error) =
   "socket_ffi" "transfer"
+
+external fn translate_async_message(Dynamic, Dynamic, Dynamic) -> Message =
+  "socket_ffi" "translate_async_message"

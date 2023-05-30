@@ -24,6 +24,14 @@ pub const loopback_v4 = Inet(#(127, 0, 0, 1))
 /// The IPv6 loopback address (`::1`).
 pub const loopback_v6 = Inet6(#(0, 0, 0, 0, 0, 0, 0, 1))
 
+/// Returns the family of an address.
+pub fn family(address: Address) -> Family {
+  case address {
+    Inet(..) -> V4
+    Inet6(..) -> V6
+  }
+}
+
 /// Construct an address from a string representation.
 ///
 /// Accepts standard IPv4 and IPv6 notations. Hex digits in IPv6 addresses are

@@ -9,7 +9,12 @@
     close/1,
     connect/3,
     connect_forever/2,
+    connect_finish/1,
     connect_nowait/2,
+    decode_accept_result/1,
+    decode_connect_result/1,
+    decode_recv_result/1,
+    decode_send_result/1,
     listen/1, listen/2,
     open/4,
     recv/4,
@@ -21,18 +26,18 @@
     shutdown/2,
     sockaddr_in/2,
     sockaddr_un/1,
-    transfer/2
+    transfer/2,
+    translate_async_message/3
 ]).
 
 -include("posix_ffi.hrl").
 
+-define(is_connect_error(Error),
+    Error =:= already orelse Error =:= closed orelse Error =:= not_bound orelse Error =:= timeout
+).
+
 accept(ListenSocket, Timeout) ->
-    case socket:accept(ListenSocket, Timeout) of
-        {ok, Socket} -> {ok, Socket};
-        {select, Info} -> {select, Info, nil};
-        {completion, Info} -> {completion, Info};
-        {error, Error} -> {error, posix_or_closed_or_timeout(Error)}
-    end.
+    translate_accept_result(socket:accept(ListenSocket, Timeout), assert).
 
 accept_forever(ListenSocket) ->
     accept(ListenSocket, infinity).
@@ -66,11 +71,12 @@ close(Socket) ->
     end.
 
 connect(Socket, Address, Timeout) ->
-    case socket:connect(Socket, Address, Timeout) of
+    translate_connect_result(socket:connect(Socket, Address, Timeout), assert).
+
+connect_finish(Socket) ->
+    case socket:connect(Socket) of
         ok -> {ok, nil};
-        {select, Info} -> {select, Info, nil};
-        {completion, Info} -> {completion, Info};
-        {error, Error} -> {error, posix_or_connect_error(Error)}
+        {error, Error} -> {error, posix_or_closed(Error)}
     end.
 
 connect_forever(Socket, Address) ->
@@ -98,14 +104,7 @@ open(Domain, Type, Protocol, Opts) ->
     end.
 
 recv(Socket, Length, Flags, Timeout) ->
-    case socket:recv(Socket, Length, Flags, Timeout) of
-        {ok, Data} -> {ok, Data};
-        {select, {Info, Data}} -> {select, Info, {some, Data}};
-        {select, Info} -> {select, Info, none};
-        {completion, Info} -> {completion, Info};
-        {error, {Error, Data}} -> {error, {posix_or_closed_or_timeout(Error), {some, Data}}};
-        {error, Error} -> {error, {posix_or_closed_or_timeout(Error), none}}
-    end.
+    translate_recv_result(socket:recv(Socket, Length, Flags, Timeout), assert).
 
 recv_forever(Socket, Length, Flags) ->
     recv(Socket, Length, Flags, infinity).
@@ -114,14 +113,7 @@ recv_nowait(Socket, Length, Flags) ->
     recv(Socket, Length, Flags, nowait).
 
 send(Socket, Data, {Type, Arg3}, Timeout) when Type =:= normal orelse Type =:= continue ->
-    case socket:send(Socket, Data, Arg3, Timeout) of
-        ok -> {ok, none};
-        {ok, Rest} -> {ok, {some, Rest}};
-        {select, {Info, Rest}} -> {select, Info, {some, Rest}};
-        {select, Info} -> {select, Info, none};
-        {completion, Info} -> {completion, Info};
-        {error, Error} -> {error, posix_or_closed_or_timeout(Error)}
-    end.
+    translate_send_result(socket:send(Socket, Data, Arg3, Timeout), assert).
 
 send_forever(Socket, Data, Disposition) ->
     send(Socket, Data, Disposition, infinity).
@@ -148,6 +140,98 @@ transfer(Socket, Pid) ->
         {error, {invalid, not_owner}} -> {error, not_owner}
     end.
 
+translate_async_message(Socket, Type, Data) ->
+    case Type of
+        abort ->
+            {Handle, Error} = Data,
+            Reason =
+                case Error of
+                    closed -> closed;
+                    Other -> {unknown, Other}
+                end,
+            {abort, Socket, Handle, Reason};
+        select ->
+            {select, Socket, Data};
+        completion ->
+            {Handle, Result} = Data,
+            {completion, Socket, Handle, Result}
+    end.
+
+decode_accept_result(Result) -> translate_accept_result(Result, decode).
+decode_connect_result(Result) -> translate_connect_result(Result, decode).
+decode_recv_result(Result) -> translate_recv_result(Result, decode).
+decode_send_result(Result) -> translate_send_result(Result, decode).
+
+translate_accept_result(Result, How) ->
+    case Result of
+        {ok, {'$socket', _} = Socket} -> {ok, Socket};
+        {select, {select_info, _, _} = Info} -> {select, Info, nil};
+        {completion, {completion_info, _, _} = Info} -> {completion, Info};
+        {error, Error} when Error =:= closed orelse Error =:= timeout -> {error, Error};
+        {error, Error} when ?is_posix_error(Error) -> {error, {posix, Error}};
+        Other when How =:= assert -> error({unexpected_result, accept, Other});
+        Other when How =:= decode -> decode_error(<<"AcceptResult">>, Other)
+    end.
+
+translate_connect_result(Result, How) ->
+    case Result of
+        ok -> {ok, nil};
+        {select, {select_info, _, _} = Info} -> {select, Info, nil};
+        {completion, {completion_info, _, _} = Info} -> {completion, Info};
+        {error, Error} when ?is_connect_error(Error) -> {error, Error};
+        {error, Error} when ?is_posix_error(Error) -> {error, {posix, Error}};
+        Other when How =:= assert -> error({unexpected_result, connect, Other});
+        Other when How =:= decode -> decode_error(<<"ConnectResult">>, Other)
+    end.
+
+translate_recv_result(Result, How) ->
+    case Result of
+        {ok, Data} when is_binary(Data) ->
+            {ok, Data};
+        {select, {select_info, _, _} = Info} ->
+            {select, Info, none};
+        {select, {{select_info, _, _} = Info, Data}} when is_binary(Data) ->
+            {select, Info, {some, Data}};
+        {completion, {completion_info, _, _} = Info} ->
+            {completion, Info};
+        {error, {Error, Data}} when Error =:= closed orelse Error =:= timeout, is_binary(Data) ->
+            {error, {Error, {some, Data}}};
+        {error, {Error, Data}} when ?is_posix_error(Error), is_binary(Data) ->
+            {error, {{posix, Error}, {some, Data}}};
+        {error, Error} when Error =:= closed orelse Error =:= timeout ->
+            {error, {Error, none}};
+        {error, Error} when ?is_posix_error(Error) ->
+            {error, {{posix, Error}, none}};
+        Other when How =:= assert -> error({unexpected_result, recv, Other});
+        Other when How =:= decode -> decode_error(<<"RecvResult">>, Other)
+    end.
+
+translate_send_result(Result, How) ->
+    case Result of
+        ok ->
+            {ok, none};
+        {ok, Rest} when is_binary(Rest) ->
+            {ok, {some, Rest}};
+        {select, {select_info, _, _} = Info} ->
+            {select, Info, none};
+        {select, {{select_info, _, _} = Info, Rest}} when is_binary(Rest) ->
+            {select, Info, {some, Rest}};
+        {completion, {completion_info, _, _} = Info} ->
+            {completion, Info};
+        {error, Error} when Error =:= closed orelse Error =:= timeout ->
+            {error, Error};
+        {error, Error} when ?is_posix_error(Error) ->
+            {error, {posix, Error}};
+        Other when How =:= assert -> error({unexpected_result, send, Other});
+        Other when How =:= decode -> decode_error(<<"SendResult">>, Other)
+    end.
+
+decode_error(Expected, Got) ->
+    {error, [
+        {decode_error, Expected,
+            unicode:characters_to_binary(lists:flatten(io_lib:format("~tw", [Got]))), []}
+    ]}.
+
 posix_or_closed(Error) ->
     case Error of
         closed -> closed;
@@ -157,15 +241,6 @@ posix_or_closed(Error) ->
 posix_or_closed_or_timeout(Error) ->
     case Error of
         closed -> closed;
-        timeout -> timeout;
-        E when ?is_posix_error(E) -> {posix, E}
-    end.
-
-posix_or_connect_error(Error) ->
-    case Error of
-        already -> already;
-        closed -> closed;
-        not_bound -> not_bound;
         timeout -> timeout;
         E when ?is_posix_error(E) -> {posix, E}
     end.
