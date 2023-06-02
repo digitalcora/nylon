@@ -37,7 +37,7 @@
 ).
 
 accept(ListenSocket, Timeout) ->
-    translate_accept_result(socket:accept(ListenSocket, Timeout), assert).
+    translate_accept_result(socket:accept(ListenSocket, Timeout), false).
 
 accept_forever(ListenSocket) ->
     accept(ListenSocket, infinity).
@@ -71,7 +71,7 @@ close(Socket) ->
     end.
 
 connect(Socket, Address, Timeout) ->
-    translate_connect_result(socket:connect(Socket, Address, Timeout), assert).
+    translate_connect_result(socket:connect(Socket, Address, Timeout), false).
 
 connect_finish(Socket) ->
     case socket:connect(Socket) of
@@ -104,7 +104,7 @@ open(Domain, Type, Protocol, Opts) ->
     end.
 
 recv(Socket, Length, Flags, Timeout) ->
-    translate_recv_result(socket:recv(Socket, Length, Flags, Timeout), assert).
+    translate_recv_result(socket:recv(Socket, Length, Flags, Timeout), false).
 
 recv_forever(Socket, Length, Flags) ->
     recv(Socket, Length, Flags, infinity).
@@ -113,7 +113,7 @@ recv_nowait(Socket, Length, Flags) ->
     recv(Socket, Length, Flags, nowait).
 
 send(Socket, Data, {Type, Arg3}, Timeout) when Type =:= normal orelse Type =:= continue ->
-    translate_send_result(socket:send(Socket, Data, Arg3, Timeout), assert).
+    translate_send_result(socket:send(Socket, Data, Arg3, Timeout), false).
 
 send_forever(Socket, Data, Disposition) ->
     send(Socket, Data, Disposition, infinity).
@@ -157,42 +157,40 @@ translate_async_message(Socket, Type, Data) ->
             {completion, Socket, Handle, Result}
     end.
 
-decode_accept_result(Result) -> translate_accept_result(Result, decode).
-decode_connect_result(Result) -> translate_connect_result(Result, decode).
-decode_recv_result(Result) -> translate_recv_result(Result, decode).
-decode_send_result(Result) -> translate_send_result(Result, decode).
+decode_accept_result(Result) -> translate_accept_result(Result, true).
+decode_connect_result(Result) -> translate_connect_result(Result, true).
+decode_recv_result(Result) -> translate_recv_result(Result, true).
+decode_send_result(Result) -> translate_send_result(Result, true).
 
-translate_accept_result(Result, How) ->
+translate_accept_result(Result, IsDecode) ->
     case Result of
         {ok, {'$socket', _} = Socket} -> {ok, Socket};
-        {select, {select_info, _, _} = Info} -> {select, Info, nil};
-        {completion, {completion_info, _, _} = Info} -> {completion, Info};
+        {select, {select_info, _, _} = Info} when not IsDecode -> {select, Info, nil};
+        {completion, {completion_info, _, _} = Info} when not IsDecode -> {completion, Info};
         {error, Error} when Error =:= closed orelse Error =:= timeout -> {error, Error};
         {error, Error} when ?is_posix_error(Error) -> {error, {posix, Error}};
-        Other when How =:= assert -> error({unexpected_result, accept, Other});
-        Other when How =:= decode -> decode_error(<<"AcceptResult">>, Other)
+        Other when IsDecode -> decode_error(<<"AcceptResult">>, Other)
     end.
 
-translate_connect_result(Result, How) ->
+translate_connect_result(Result, IsDecode) ->
     case Result of
         ok -> {ok, nil};
-        {select, {select_info, _, _} = Info} -> {select, Info, nil};
-        {completion, {completion_info, _, _} = Info} -> {completion, Info};
+        {select, {select_info, _, _} = Info} when not IsDecode -> {select, Info, nil};
+        {completion, {completion_info, _, _} = Info} when not IsDecode -> {completion, Info};
         {error, Error} when ?is_connect_error(Error) -> {error, Error};
         {error, Error} when ?is_posix_error(Error) -> {error, {posix, Error}};
-        Other when How =:= assert -> error({unexpected_result, connect, Other});
-        Other when How =:= decode -> decode_error(<<"ConnectResult">>, Other)
+        Other when IsDecode -> decode_error(<<"ConnectResult">>, Other)
     end.
 
-translate_recv_result(Result, How) ->
+translate_recv_result(Result, IsDecode) ->
     case Result of
         {ok, Data} when is_binary(Data) ->
             {ok, Data};
-        {select, {select_info, _, _} = Info} ->
+        {select, {select_info, _, _} = Info} when not IsDecode ->
             {select, Info, none};
-        {select, {{select_info, _, _} = Info, Data}} when is_binary(Data) ->
+        {select, {{select_info, _, _} = Info, Data}} when not IsDecode andalso is_binary(Data) ->
             {select, Info, {some, Data}};
-        {completion, {completion_info, _, _} = Info} ->
+        {completion, {completion_info, _, _} = Info} when not IsDecode ->
             {completion, Info};
         {error, {Error, Data}} when Error =:= closed orelse Error =:= timeout, is_binary(Data) ->
             {error, {Error, {some, Data}}};
@@ -202,28 +200,26 @@ translate_recv_result(Result, How) ->
             {error, {Error, none}};
         {error, Error} when ?is_posix_error(Error) ->
             {error, {{posix, Error}, none}};
-        Other when How =:= assert -> error({unexpected_result, recv, Other});
-        Other when How =:= decode -> decode_error(<<"RecvResult">>, Other)
+        Other when IsDecode -> decode_error(<<"RecvResult">>, Other)
     end.
 
-translate_send_result(Result, How) ->
+translate_send_result(Result, IsDecode) ->
     case Result of
         ok ->
             {ok, none};
         {ok, Rest} when is_binary(Rest) ->
             {ok, {some, Rest}};
-        {select, {select_info, _, _} = Info} ->
+        {select, {select_info, _, _} = Info} when not IsDecode ->
             {select, Info, none};
-        {select, {{select_info, _, _} = Info, Rest}} when is_binary(Rest) ->
+        {select, {{select_info, _, _} = Info, Rest}} when not IsDecode andalso is_binary(Rest) ->
             {select, Info, {some, Rest}};
-        {completion, {completion_info, _, _} = Info} ->
+        {completion, {completion_info, _, _} = Info} when not IsDecode ->
             {completion, Info};
         {error, Error} when Error =:= closed orelse Error =:= timeout ->
             {error, Error};
         {error, Error} when ?is_posix_error(Error) ->
             {error, {posix, Error}};
-        Other when How =:= assert -> error({unexpected_result, send, Other});
-        Other when How =:= decode -> decode_error(<<"SendResult">>, Other)
+        Other when IsDecode -> decode_error(<<"SendResult">>, Other)
     end.
 
 decode_error(Expected, Got) ->
