@@ -3,7 +3,7 @@
 <!-- [![Package Version](https://img.shields.io/hexpm/v/nylon)](https://hex.pm/packages/nylon)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/nylon/) -->
 
-Sockets and networking for Gleam.
+Sockets and networking for Gleam on the BEAM.
 
 
 ## Installation

@@ -1,7 +1,15 @@
+//// Functions for working with socket addresses.
+////
+//// A "socket address" contains the information needed to send or receive data
+//// on a socket. For example, an IP socket address contains both the IP address
+//// itself and a port number.
+
 import gleam/bit_string
 import nylon/ip
 
-/// A socket address.
+/// A socket address. Specifically, an Erlang [`socket:sockaddr`][erl-addr].
+///
+/// [erl-addr]: https://www.erlang.org/doc/man/socket.html#type-sockaddr
 pub external type Address
 
 /// An IP port number.
@@ -20,11 +28,11 @@ pub const assign_port = Port(0)
 /// The maximum length of a local socket path in bytes.
 pub const path_max_bytes = 108
 
-/// Constructs a socket address from an IP address and port.
+/// Construct a socket address from an IP address and port.
 pub external fn ip(ip.Address, Port) -> Address =
   "socket_ffi" "sockaddr_in"
 
-/// Constructs a "local" socket address, also known as a "Unix domain socket".
+/// Construct a "local" socket address, also known as a "Unix domain socket".
 ///
 /// The path should be an absolute path to a filename, where all directories in
 /// the path exist but the file does not (it is created by `socket.bind`). This
@@ -44,11 +52,10 @@ pub fn local(path: String) -> Result(Address, Nil) {
   }
 }
 
-/// Constructs a validated `Port`. If the given number is out of bounds for an
+/// Construct a validated `Port`. If the given number is out of bounds for an
 /// IP port number, returns `Error(Nil)`.
 ///
-/// See `assign_port` for a constant version of "port 0" that does not require
-/// handling a `Result`.
+/// See `assign_port` for a more convenient constant version of "port 0".
 pub fn port(num: Int) -> Result(Port, Nil) {
   case num {
     num if num >= 0 && num <= 65_535 -> Ok(Port(num))

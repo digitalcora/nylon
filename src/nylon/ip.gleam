@@ -1,4 +1,8 @@
-/// An IP address.
+//// Functions for working with Internet Protocol addresses.
+
+/// An IP address. Wraps an Erlang [`inet:ip_address`][erl-ip].
+///
+/// [erl-ip]: https://www.erlang.org/doc/man/inet.html#type-ip_address
 pub opaque type Address {
   Inet(#(Int, Int, Int, Int))
   Inet6(#(Int, Int, Int, Int, Int, Int, Int, Int))
@@ -24,7 +28,7 @@ pub const loopback_v4 = Inet(#(127, 0, 0, 1))
 /// The IPv6 loopback address (`::1`).
 pub const loopback_v6 = Inet6(#(0, 0, 0, 0, 0, 0, 0, 1))
 
-/// Returns the family of an address.
+/// Return the family of an address.
 pub fn family(address: Address) -> Family {
   case address {
     Inet(..) -> V4
