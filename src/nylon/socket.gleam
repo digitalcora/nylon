@@ -162,19 +162,28 @@ pub external fn connect_until(
 ) -> Result(Nil, connect_until.Error) =
   "socket_ffi" "connect"
 
+// TODO: note about streams
+// TODO: `Timeout` = linger timeout expired without all buffered data being sent
 /// Close a socket, freeing up the underlying system resources.
 ///
 /// Operations waiting on the socket will immediately return `Error(Closed)`,
 /// and passing the socket to any `socket` functions from this point on will
 /// return the same error.
 ///
-/// It is not expected that this function will ever return a POSIX error. The
-/// best option if it does is probably to `panic`.
+/// It is not expected that this function will ever return a POSIX error. If it
+/// does, the best option is probably to `panic`.
 ///
-// TODO: note about streams
-// TODO: `Timeout` = linger timeout expired without all buffered data being sent
 pub external fn close(Socket) -> Result(Nil, timeout.Error) =
   "socket_ffi" "close"
+
+/// Enables or disables debug mode. When enabled, debugging information is
+/// printed to standard output for all operations on the socket. To enable
+/// debug output during `socket.open`(before you have a `Socket` to pass to
+/// this function), see `open.Debug`.
+///
+/// Returns `Error(Nil)` if the socket is closed.
+pub external fn debug(Socket, Bool) -> Result(Nil, Nil) =
+  "option_ffi" "debug"
 
 pub external fn listen(Socket) -> Result(Nil, listen.Error) =
   "socket_ffi" "listen"
@@ -206,12 +215,12 @@ pub external fn open(
 ) -> Result(Socket, posix.Error) =
   "socket_ffi" "open"
 
-pub external fn recv(Socket, length: Int, flags: List(recv.Flag)) -> RecvResult =
+pub external fn recv(Socket, bytes: Int, flags: List(recv.Flag)) -> RecvResult =
   "socket_ffi" "recv_forever"
 
 pub external fn recv_async(
   Socket,
-  length: Int,
+  bytes: Int,
   flags: List(recv.Flag),
 ) -> async.Result(
   BitString,
@@ -227,7 +236,7 @@ pub external fn recv_result(
 
 pub external fn recv_until(
   Socket,
-  length: Int,
+  bytes: Int,
   flags: List(recv.Flag),
   timeout: Int,
 ) -> Result(BitString, #(timeout.Error, Option(BitString))) =

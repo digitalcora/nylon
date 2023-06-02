@@ -10,8 +10,8 @@ pub type Domain {
 
   /// IPv6 addressing (see `address.ip`).
   ///
-  /// > ⚠ IPv6 support in the underlying `socket` module is called out as "not
-  /// > fully tested". Use with caution.
+  /// > ⚠ As of Erlang 26, IPv6 support in the underlying `socket` module is
+  /// > called out as "not fully tested". Use with caution.
   Inet6
 
   /// Local addressing, also known as "Unix domain" (see `address.local`).
@@ -35,8 +35,8 @@ pub type Type {
   /// The default protocol for IP sockets with this type is TCP.
   Stream
 
-  /// Similar to `Stream` but allows a data sender to add out-of-band "record
-  /// boundaries" to the data stream (see `send.Eor` and `recv.Eor`).
+  /// Similar to `Stream` but allows a data sender to add "record boundaries" to
+  /// the data stream (see `send.Eor` and `recv.Eor`).
   ///
   /// The default protocol for IP sockets with this type is SCTP.
   Seqpacket
@@ -69,8 +69,8 @@ pub type Protocol {
 
   /// SCTP. Only valid with IP domains and `Stream` or `Seqpacket` types.
   ///
-  /// > ⚠ SCTP support in the underlying `socket` module is marked as "partly
-  /// > implemented and not tested". Use with caution.
+  /// > ⚠ As of Erlang 26, SCTP support in the underlying `socket` module is
+  /// > marked as "partly implemented and not tested". Use with caution.
   Sctp
 
   /// Raw IPv4. Only valid with `Raw` type.
@@ -83,7 +83,7 @@ pub type Protocol {
 /// Options for `socket.open`.
 pub type Option {
   /// When `True`, enables debug output during the `open` call. To enable debug
-  /// output for further socket operations, ...TODO...
+  /// output for further socket operations, see `option.set_debug`.
   ///
   /// Default: `False`
   Debug(Bool)
@@ -92,8 +92,8 @@ pub type Option {
   Netns(String)
 
   /// When `True`, the socket is added to a global registry that can be queried
-  /// by the Erlang function [`socket:which_sockets`][ws]. This library
-  /// currently does not provide a Gleam wrapper for this function.
+  /// by e.g. [`socket:which_sockets`][ws]. This library does not provide Gleam
+  /// wrappers for socket registry functions.
   ///
   /// Default: `True`
   ///

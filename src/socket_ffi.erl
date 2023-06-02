@@ -11,6 +11,7 @@
     connect_forever/2,
     connect_finish/1,
     connect_nowait/2,
+    debug/2,
     decode_accept_result/1,
     decode_connect_result/1,
     decode_recv_result/1,
@@ -84,6 +85,12 @@ connect_forever(Socket, Address) ->
 
 connect_nowait(Socket, Address) ->
     connect(Socket, Address, nowait).
+
+debug(Socket, Value) ->
+    case socket:setopt(Socket, {otp, debug}, Value) of
+        ok -> {ok, nil};
+        {error, closed} -> {error, nil}
+    end.
 
 listen(Socket) ->
     case socket:listen(Socket) of
