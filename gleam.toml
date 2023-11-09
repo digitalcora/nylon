@@ -1,0 +1,15 @@
+name = "nylon"
+version = "0.0.1"
+description = "Sockets and networking for Gleam."
+licences = ["Apache-2.0"]
+repository = { type = "github", user = "digitalcora", repo = "nylon" }
+
+internal_modules = []
+
+[dependencies]
+gleam_stdlib = "~> 0.32.0"
+gleam_erlang = "~> 0.23.0"
+gleam_otp = "~> 0.8.0"
+
+[dev-dependencies]
+gleeunit = "~> 1.0"
